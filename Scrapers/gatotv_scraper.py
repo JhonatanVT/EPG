@@ -25,8 +25,14 @@ class GatoTVScraper:
                 res.raise_for_status()
                 res.encoding = 'utf-8'
                 soup = BeautifulSoup(res.text, "html.parser")
+                
+                program_rows = soup.select("tr.tbl_EPG_row, tr.tbl_EPG_rowAlternate, tr.tbl_EPG_row_selected")
+                
+                if not program_rows:
+                    logging.warning(f"[GatoTV] No se encontraron programas en {url}. La página podría haber cambiado. Contenido (primeros 300 chars): {res.text.strip()[:300]}")
+                    continue
 
-                for row in soup.select("tr.tbl_EPG_row, tr.tbl_EPG_rowAlternate, tr.tbl_EPG_row_selected"):
+                for row in program_rows:
                     cols = row.find_all("td")
                     if len(cols) < 3: continue
                     
@@ -49,4 +55,5 @@ class GatoTVScraper:
                 logging.error(f"[GatoTV] Error en '{channel_config['nombre']}' ({url}): {e}")
                 continue
         return programas
+
 
