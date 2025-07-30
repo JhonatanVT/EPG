@@ -1,0 +1,47 @@
+name: Generar EPG XMLTV
+
+on:
+  schedule:
+    # Se ejecuta todos los días a las 14:05 UTC (8:05 AM en Costa Rica, UTC-6)
+    # para asegurar que la guía de la web ya se haya actualizado.
+    - cron: "5 14 * * *"
+  # Permite la ejecución manual desde la pestaña de Actions en GitHub
+  workflow_dispatch:
+
+permissions:
+  # Se necesita permiso de escritura para poder hacer 'git push' con los cambios.
+  contents: write
+
+jobs:
+  build-and-commit-epg:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: 2. Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+          cache: 'pip'
+
+      - name: 3. Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: 4. Ejecutar el motor principal para generar el EPG
+        run: python main.py
+
+      - name: 5. Subir la guía EPG actualizada al repositorio
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "github-actions-bot@github.com"
+          git add -f epgpersonal.xml.gz
+          # Comprueba si hay cambios para commitear. Si no hay, no hace nada.
+          if ! git diff --staged --quiet; then
+            git commit -m "EPG actualizado automáticamente - $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            git push
+          else
+            echo "No se encontraron cambios en el EPG. No se necesita commit."
+          fi
+
