@@ -1,0 +1,17 @@
+{
+  "settings": {
+    "days_to_scrape": 3,
+    "timezone_offset_hours": 6,
+    "output_file": "epgpersonal.xml.gz",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+  },
+  "channels": [
+    {
+      "id": "Repretel6.cr",
+      "nombre": "Canal 6",
+      "logo": "https://upload.wikimedia.org/wikipedia/commons/5/5c/Canal6CR.png",
+      "scraper": "gatotv",
+      "url": "https://www.gatotv.com/canal/6_de_costa_rica"
+    }
+     ] 
+}
