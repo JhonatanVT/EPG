@@ -3,9 +3,10 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import logging
 
+
 class MiTVScraper:
     def __init__(self, config):
-        self.user_agent = config.get("user_agent")
+        self.headers = config.get("headers", {"User-Agent": "Mozilla/5.0"})
         self.days_to_scrape = config.get("days_to_scrape", 3)
         self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours", 6))
 
