@@ -26,13 +26,16 @@ jobs:
           python-version: "3.9"
           cache: 'pip'
 
-      - name: 3. Instalar dependencias
+      - name: 3. Instalar un navegador (base para Chrome/Brave)
+        uses: browser-actions/setup-chrome@v1
+
+      - name: 4. Instalar dependencias de Python
         run: pip install -r requirements.txt
 
-      - name: 4. Ejecutar el motor principal para generar el EPG
+      - name: 5. Ejecutar el motor principal para generar el EPG
         run: python main.py
 
-      - name: 5. Subir la guía EPG actualizada al repositorio
+      - name: 6. Subir la guía EPG actualizada al repositorio
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "github-actions-bot@github.com"
@@ -44,4 +47,3 @@ jobs:
           else
             echo "No se encontraron cambios en el EPG. No se necesita commit."
           fi
-
