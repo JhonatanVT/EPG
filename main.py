@@ -1,8 +1,8 @@
 import json
 import logging
 import gzip
-from scrapers.gatotv_scraper import GatoTVScraper
-from scrapers.mitv_scraper import MiTVScraper
+from Scrapers.gatotv_scraper import GatoTVScraper
+from Scrapers.mitv_scraper import MiTVScraper
 
 # Configuración del logging para ver qué está pasando
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -91,6 +91,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
