@@ -58,8 +58,7 @@ class GatoTVScraper:
                 program_rows = soup.select("tr.tbl_EPG_row, tr.tbl_EPG_rowAlternate, tr.tbl_EPG_row_selected")
                 
                 if not program_rows:
-                    # Esta es la línea corregida. Ya no causa un error.
-                    logging.warning(f"[GatoTV] No se encontraron programas en {url}. La página podría haber cambiado.")
+                    logging.warning(f"[GatoTV] No se encontraron programas en {url}. La página podría haber cambiado o tardado en cargar.")
                     continue
 
                 for row in program_rows:
@@ -94,4 +93,3 @@ class GatoTVScraper:
                 driver.quit()
 
         return programas
-
