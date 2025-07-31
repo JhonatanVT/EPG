@@ -24,6 +24,7 @@ class GatoTVScraper:
                 res = requests.get(url, headers=self.headers, timeout=15)
                 res.raise_for_status()
                 res.encoding = 'utf-8'
+                logging.info(f"[GatoTV] Primeros 500 caracteres de la respuesta para {url}:\n{res.text[:500]}")
                 soup = BeautifulSoup(res.text, "html.parser")
                 
                 # CLAVE: Buscamos la tabla principal primero, como hace iptv-org
