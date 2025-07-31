@@ -7,7 +7,7 @@ class GatoTVScraper:
     def __init__(self, config):
         self.headers = config.get("headers", {"User-Agent": "Mozilla/5.0"})
         self.days_to_scrape = config.get("days_to_scrape", 3)
-        self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours", 5))
+        self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours", 6))
 
     def fetch_programs(self, channel_config):
         """
