@@ -58,7 +58,7 @@ class GatoTVScraper:
                 program_rows = soup.select("tr.tbl_EPG_row, tr.tbl_EPG_rowAlternate, tr.tbl_EPG_row_selected")
                 
                 if not program_rows:
-                    # Esta línea tenía un error (res.text no existe en el contexto de Selenium), la corregimos.
+                    # Esta es la línea corregida. Ya no causa un error.
                     logging.warning(f"[GatoTV] No se encontraron programas en {url}. La página podría haber cambiado.")
                     continue
 
@@ -76,8 +76,13 @@ class GatoTVScraper:
                     end_dt = datetime.combine(fecha_local, end_local.time())
                     if end_dt < start_dt: end_dt += timedelta(days=1)
 
+                    # ¡Aquí está tu idea en acción! Buscamos la descripción.
+                    desc_tag = cols[2].find("div", class_="hidden-xs")
+                    descripcion = desc_tag.text.strip() if desc_tag else ""
+
                     programas.append({
                         "title": cols[2].find("span").text.strip() if cols[2].find("span") else "Sin título",
+                        "description": descripcion,
                         "start": (start_dt + self.timezone_offset).strftime("%Y%m%d%H%M%S +0000"),
                         "stop": (end_dt + self.timezone_offset).strftime("%Y%m%d%H%M%S +0000")
                     })
