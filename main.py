@@ -1,11 +1,27 @@
 import json
 import logging
 import gzip
+from logging import FileHandler
 from Scrapers.gatotv_scraper import GatoTVScraper
 from Scrapers.mitv_scraper import MiTVScraper
 
 # Configuración del logging para ver qué está pasando
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+log_file = 'epg_generator.log'
+
+# Configurar el manejador de archivos para que rote los logs
+file_handler = FileHandler(log_file, mode='w') # 'w' para sobrescribir en cada ejecución
+file_handler.setFormatter(log_formatter)
+
+# Configurar el manejador de la consola
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+
+# Obtener el logger raíz y añadirle los manejadores
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(file_handler)
+root_logger.addHandler(console_handler)
 
 def escapar_xml(texto):
     """Escapa caracteres especiales para que el XML sea válido."""
@@ -87,7 +103,7 @@ def main():
 
     with gzip.open(output_filename, "wt", encoding="utf-8") as f:
         f.write(xml_final)
-    logging.info(f"✅ Archivo EPG '{output_filename}' generado con éxito. Total de programas: {len(all_programs)}.")
+    logging.info(f"Archivo EPG '{output_filename}' generado con éxito. Total de programas: {len(all_programs)}.")
 
 if __name__ == "__main__":
     main()

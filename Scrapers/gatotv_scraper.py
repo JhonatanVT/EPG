@@ -6,7 +6,7 @@ import logging
 class GatoTVScraper:
     def __init__(self, config):
         self.headers = config.get("headers", {"User-Agent": "Mozilla/5.0"})
-        self.days_to_scrape = config.get("days_to_scrape", 3)
+        self.days_to_scrape = 1
         self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours", 6))
 
     def fetch_programs(self, channel_config):
@@ -24,9 +24,8 @@ class GatoTVScraper:
                 res = requests.get(url, headers=self.headers, timeout=15)
                 res.raise_for_status()
                 res.encoding = 'utf-8'
-                logging.info(f"[GatoTV] Primeros 500 caracteres de la respuesta para {url}:\n{res.text[:500]}")
                 soup = BeautifulSoup(res.text, "html.parser")
-                
+
                 # CLAVE: Buscamos la tabla principal primero, como hace iptv-org
                 epg_table = soup.find("table", class_="tbl_EPG")
                 
@@ -69,4 +68,3 @@ class GatoTVScraper:
                 logging.error(f"[GatoTV] Error en '{channel_config['nombre']}' ({url}): {e}")
                 continue
         return programas
-
