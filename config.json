@@ -1,7 +1,7 @@
 {
   "settings": {
     "days_to_scrape": 3,
-    "timezone_offset_hours": 6,
+    "timezone_offset_hours": 5,
     "output_file": "epgpersonal.xml.gz",
     "headers": {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
