@@ -13,7 +13,7 @@ class GatoTVScraper:
             self.days_to_scrape = config.get("days_to_scrape", 2)
             logging.info("[GatoTV] Configurado en modo FIN DE SEMANA - scrapeando sábado y domingo")
         else:
-            self.days_to_scrape = config.get("days_to_scrape", 1)
+            self.days_to_scrape = config.get("days_to_scrape", 5)
             logging.info(f"[GatoTV] Configurado en modo NORMAL - scrapeando {self.days_to_scrape} día(s)")
             
         self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours", 6))
