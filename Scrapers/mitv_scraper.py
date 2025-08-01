@@ -7,7 +7,15 @@ import logging
 class MiTVScraper:
     def __init__(self, config):
         self.headers = config.get("headers", {"User-Agent": "Mozilla/5.0"})
-        self.days_to_scrape = config.get("days_to_scrape", 3)
+        
+        # Si estamos en modo fin de semana, usar esa configuración
+        if config.get("is_weekend_mode", False):
+            self.days_to_scrape = config.get("days_to_scrape", 2)
+            logging.info("[Mi.TV] Configurado en modo FIN DE SEMANA - scrapeando sábado y domingo")
+        else:
+            self.days_to_scrape = config.get("days_to_scrape", 3)
+            logging.info(f"[Mi.TV] Configurado en modo NORMAL - scrapeando {self.days_to_scrape} día(s)")
+            
         self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours", 6))
 
     def fetch_programs(self, channel_config):
@@ -21,10 +29,19 @@ class MiTVScraper:
         for i in range(self.days_to_scrape):
             fecha_local = (datetime.utcnow() - self.timezone_offset).date() + timedelta(days=i)
             url = f"{url_base}?fecha={fecha_local.strftime('%Y-%m-%d')}"
+            
+            # Determinar qué día estamos scrapeando para el log
+            day_name = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"][fecha_local.weekday()]
+            
             try:
-                res = requests.get(url, headers={"User-Agent": self.user_agent}, timeout=15)
+                logging.info(f"[Mi.TV] Scrapeando {day_name} {fecha_local.strftime('%Y-%m-%d')} para '{channel_config['nombre']}'")
+                
+                # FIX: Usar self.headers["User-Agent"] en lugar de self.user_agent
+                res = requests.get(url, headers={"User-Agent": self.headers["User-Agent"]}, timeout=15)
                 res.raise_for_status()
                 soup = BeautifulSoup(res.text, "html.parser")
+                
+                programs_found = 0
                 for prog in soup.select("article.program-item"):
                     time_tag = prog.find("time")
                     title_tag = prog.find("h3")
@@ -35,10 +52,15 @@ class MiTVScraper:
                     
                     programas_temp.append({
                         "title": title_tag.text.strip(),
-                        "start_dt": start_dt
+                        "start_dt": start_dt,
+                        "day": day_name
                     })
+                    programs_found += 1
+                
+                logging.info(f"[Mi.TV] ✓ {programs_found} programas encontrados para {day_name}")
+                
             except Exception as e:
-                logging.error(f"[Mi.TV] Error en '{channel_config['nombre']}' ({url}): {e}")
+                logging.error(f"[Mi.TV] Error en '{channel_config['nombre']}' para {day_name} ({url}): {e}")
                 continue
         
         # Calcular la hora de fin para cada programa

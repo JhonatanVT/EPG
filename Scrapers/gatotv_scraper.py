@@ -6,7 +6,16 @@ import logging
 class GatoTVScraper:
     def __init__(self, config):
         self.headers = config.get("headers", {"User-Agent": "Mozilla/5.0"})
-        self.days_to_scrape = 1
+        
+        # Si estamos en modo fin de semana, usar esa configuración
+        # Si no, usar 1 día por defecto (comportamiento original)
+        if config.get("is_weekend_mode", False):
+            self.days_to_scrape = config.get("days_to_scrape", 2)
+            logging.info("[GatoTV] Configurado en modo FIN DE SEMANA - scrapeando sábado y domingo")
+        else:
+            self.days_to_scrape = config.get("days_to_scrape", 1)
+            logging.info(f"[GatoTV] Configurado en modo NORMAL - scrapeando {self.days_to_scrape} día(s)")
+            
         self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours", 6))
 
     def fetch_programs(self, channel_config):
@@ -20,7 +29,12 @@ class GatoTVScraper:
             fecha_local = (datetime.utcnow() - self.timezone_offset).date() + timedelta(days=i)
             url = f"{url_base}?fecha={fecha_local.strftime('%Y-%m-%d')}"
             
+            # Determinar qué día estamos scrapeando para el log
+            day_name = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"][fecha_local.weekday()]
+            
             try:
+                logging.info(f"[GatoTV] Scrapeando {day_name} {fecha_local.strftime('%Y-%m-%d')} para '{channel_config['nombre']}'")
+                
                 res = requests.get(url, headers=self.headers, timeout=15)
                 res.raise_for_status()
                 res.encoding = 'utf-8'
@@ -40,6 +54,7 @@ class GatoTVScraper:
                     logging.warning(f"[GatoTV] Se encontró la tabla EPG, pero no contenía programas en {url}.")
                     continue
 
+                programs_found = 0
                 for row in program_rows:
                     cols = row.find_all("td")
                     if len(cols) < 3: continue
@@ -64,7 +79,12 @@ class GatoTVScraper:
                         "start": (start_dt + self.timezone_offset).strftime("%Y%m%d%H%M%S +0000"),
                         "stop": (end_dt + self.timezone_offset).strftime("%Y%m%d%H%M%S +0000")
                     })
+                    programs_found += 1
+                
+                logging.info(f"[GatoTV] ✓ {programs_found} programas encontrados para {day_name}")
+                
             except Exception as e:
-                logging.error(f"[GatoTV] Error en '{channel_config['nombre']}' ({url}): {e}")
+                logging.error(f"[GatoTV] Error en '{channel_config['nombre']}' para {day_name} ({url}): {e}")
                 continue
+                
         return programas
