@@ -37,25 +37,29 @@ def escapar_xml(texto):
 def calculate_days_to_scrape(timezone_offset_hours, settings):
     """
     Calcula cuántos días scraper basado en el día actual y configuración.
-    Si force_full_week está activado, scrapea toda la semana.
+    Si force_full_week está activado, scrapea toda la semana desde el lunes.
     Si es sábado, scrapea sábado y domingo (2 días).
     Si no, usa la configuración normal.
     """
     # Si está forzado el modo semana completa
     if settings.get("force_full_week", False):
-        logging.info("🔧 MODO PRUEBA: Scrapeando TODA LA SEMANA (7 días) - force_full_week activado")
+        logging.info("🔧 MODO PRUEBA: Scrapeando TODA LA SEMANA (7 días desde lunes) - force_full_week activado")
         return 7
     
     # Obtener la fecha local basada en el timezone offset
     local_now = datetime.utcnow() - timedelta(hours=timezone_offset_hours)
     current_weekday = local_now.weekday()  # 0=Lunes, 6=Domingo
+    day_name = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"][current_weekday]
     
     # Si es sábado (weekday = 5)
     if current_weekday == 5:
         logging.info(f"Es sábado ({local_now.strftime('%Y-%m-%d')}). Scrapeando programación de fin de semana (sábado y domingo).")
         return 2  # Scrapear sábado y domingo
+    # Si es domingo (weekday = 6)
+    elif current_weekday == 6:
+        logging.info(f"Es domingo ({local_now.strftime('%Y-%m-%d')}). Scrapeando solo domingo (fin de semana).")
+        return 1  # Solo domingo
     else:
-        day_name = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"][current_weekday]
         logging.info(f"Es {day_name} ({local_now.strftime('%Y-%m-%d')}). Usando configuración normal de días.")
         return None  # Usar configuración por defecto
 

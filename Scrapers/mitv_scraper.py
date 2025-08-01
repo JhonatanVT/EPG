@@ -29,9 +29,23 @@ class MiTVScraper:
         site_id = channel_config["site_id"]
         url_base = f"https://mi.tv/co/canales/{site_id}"
         programas_temp = []
+        
+        # Obtener la fecha local actual
+        today_local = (datetime.utcnow() - self.timezone_offset).date()
+        current_weekday = today_local.weekday()  # 0=Lunes, 6=Domingo
+        
+        # Si estamos en modo semana completa, empezar desde el lunes de esta semana
+        if hasattr(self, 'days_to_scrape') and self.days_to_scrape == 7:
+            # Calcular el lunes de esta semana
+            monday_this_week = today_local - timedelta(days=current_weekday)
+            start_date = monday_this_week
+            logging.info(f"[Mi.TV] Modo semana completa: iniciando desde lunes {start_date.strftime('%Y-%m-%d')}")
+        else:
+            # Modo normal: empezar desde hoy
+            start_date = today_local
 
         for i in range(self.days_to_scrape):
-            fecha_local = (datetime.utcnow() - self.timezone_offset).date() + timedelta(days=i)
+            fecha_local = start_date + timedelta(days=i)
             url = f"{url_base}?fecha={fecha_local.strftime('%Y-%m-%d')}"
             
             # Determinar qué día estamos scrapeando para el log
