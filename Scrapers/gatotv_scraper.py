@@ -7,13 +7,16 @@ class GatoTVScraper:
     def __init__(self, config):
         self.headers = config.get("headers", {"User-Agent": "Mozilla/5.0"})
         
+        # Si estamos en modo semana completa (para pruebas)
+        if config.get("is_full_week_mode", False):
+            self.days_to_scrape = 7
+            logging.info("[GatoTV] 🔧 MODO PRUEBA: Configurado para SEMANA COMPLETA - scrapeando 7 días")
         # Si estamos en modo fin de semana, usar esa configuración
-        # Si no, usar 1 día por defecto (comportamiento original)
-        if config.get("is_weekend_mode", False):
+        elif config.get("is_weekend_mode", False):
             self.days_to_scrape = config.get("days_to_scrape", 2)
             logging.info("[GatoTV] Configurado en modo FIN DE SEMANA - scrapeando sábado y domingo")
         else:
-            self.days_to_scrape = config.get("days_to_scrape", 5)
+            self.days_to_scrape = config.get("days_to_scrape", 1)
             logging.info(f"[GatoTV] Configurado en modo NORMAL - scrapeando {self.days_to_scrape} día(s)")
             
         self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours", 6))

@@ -34,12 +34,18 @@ def escapar_xml(texto):
                  .replace('"', "&quot;")
                  .replace("'", "&apos;"))
 
-def calculate_days_to_scrape(timezone_offset_hours):
+def calculate_days_to_scrape(timezone_offset_hours, settings):
     """
-    Calcula cuántos días scraper basado en el día actual.
+    Calcula cuántos días scraper basado en el día actual y configuración.
+    Si force_full_week está activado, scrapea toda la semana.
     Si es sábado, scrapea sábado y domingo (2 días).
     Si no, usa la configuración normal.
     """
+    # Si está forzado el modo semana completa
+    if settings.get("force_full_week", False):
+        logging.info("🔧 MODO PRUEBA: Scrapeando TODA LA SEMANA (7 días) - force_full_week activado")
+        return 7
+    
     # Obtener la fecha local basada en el timezone offset
     local_now = datetime.utcnow() - timedelta(hours=timezone_offset_hours)
     current_weekday = local_now.weekday()  # 0=Lunes, 6=Domingo
@@ -70,15 +76,17 @@ def main():
     timezone_offset_hours = settings.get("timezone_offset_hours", 6)
     
     # Calcular días a scrapear basado en si es sábado o no
-    weekend_days = calculate_days_to_scrape(timezone_offset_hours)
+    weekend_days = calculate_days_to_scrape(timezone_offset_hours, settings)
     if weekend_days:
-        # Crear configuración temporal para fin de semana
+        # Crear configuración temporal para fin de semana o semana completa
         weekend_settings = settings.copy()
         weekend_settings["days_to_scrape"] = weekend_days
-        weekend_settings["is_weekend_mode"] = True
+        weekend_settings["is_weekend_mode"] = weekend_days == 2
+        weekend_settings["is_full_week_mode"] = weekend_days == 7
     else:
         weekend_settings = settings.copy()
         weekend_settings["is_weekend_mode"] = False
+        weekend_settings["is_full_week_mode"] = False
     
     # Diccionario de scrapers disponibles. Si creas uno nuevo, lo añades aquí.
     scrapers = {
@@ -112,7 +120,13 @@ def main():
         # Obtener la programación para este canal
         scraper = scrapers.get(scraper_key)
         if scraper:
-            mode_text = "FIN DE SEMANA" if weekend_settings.get("is_weekend_mode") else "NORMAL"
+            if weekend_settings.get("is_full_week_mode"):
+                mode_text = "SEMANA COMPLETA (PRUEBA)"
+            elif weekend_settings.get("is_weekend_mode"):
+                mode_text = "FIN DE SEMANA"
+            else:
+                mode_text = "NORMAL"
+            
             logging.info(f"Procesando canal '{channel_name}' con el scraper '{scraper_key}' en modo {mode_text}...")
             programas_canal = scraper.fetch_programs(channel)
             for prog in programas_canal:
@@ -138,7 +152,13 @@ def main():
         f.write(xml_final)
     
     total_programs = len(all_programs)
-    mode_text = "MODO FIN DE SEMANA" if weekend_settings.get("is_weekend_mode") else "MODO NORMAL"
+    if weekend_settings.get("is_full_week_mode"):
+        mode_text = "MODO SEMANA COMPLETA (PRUEBA)"
+    elif weekend_settings.get("is_weekend_mode"):
+        mode_text = "MODO FIN DE SEMANA"
+    else:
+        mode_text = "MODO NORMAL"
+    
     logging.info(f"Archivo EPG '{output_filename}' generado con éxito en {mode_text}. Total de programas: {total_programs}.")
 
 if __name__ == "__main__":

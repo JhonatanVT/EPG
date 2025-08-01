@@ -8,8 +8,12 @@ class MiTVScraper:
     def __init__(self, config):
         self.headers = config.get("headers", {"User-Agent": "Mozilla/5.0"})
         
+        # Si estamos en modo semana completa (para pruebas)
+        if config.get("is_full_week_mode", False):
+            self.days_to_scrape = 7
+            logging.info("[Mi.TV] 🔧 MODO PRUEBA: Configurado para SEMANA COMPLETA - scrapeando 7 días")
         # Si estamos en modo fin de semana, usar esa configuración
-        if config.get("is_weekend_mode", False):
+        elif config.get("is_weekend_mode", False):
             self.days_to_scrape = config.get("days_to_scrape", 2)
             logging.info("[Mi.TV] Configurado en modo FIN DE SEMANA - scrapeando sábado y domingo")
         else:
@@ -74,4 +78,3 @@ class MiTVScraper:
                 "stop": stop_utc.strftime("%Y%m%d%H%M%S +0000")
             })
         return programas_finales
-
