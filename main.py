@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from logging import FileHandler
 from Scrapers.gatotv_scraper import GatoTVScraper
 from Scrapers.mitv_scraper import MiTVScraper
-from channel_discovery import auto_discover_channels_if_needed
+from Scrapers.channel_discovery import auto_discover_channels_if_needed
 
 # Configuración del logging para ver qué está pasando
 log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
