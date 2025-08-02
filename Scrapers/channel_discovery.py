@@ -147,9 +147,137 @@ def discover_mitv_channels():
             "nombre": "RCN Televisión",
             "site_id": "rcn-television",
             "scraper": "mitv",
-            "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/RCN_Televisi%C3%B3n_logo.svg/1200px-RCN"
+            "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/RCN_Televisi%C3%B3n_logo.svg/1200px-RCN_Televisi%C3%B3n_logo.svg.png"
         }
     ]
+    
+    logging.info(f"[Mi.TV] {len(known_channels)} canales conocidos disponibles")
+    return known_channels
 
+def update_config_with_discovered_channels(config_file='config.json'):
+    """
+    Actualiza automáticamente el config.json con canales descubiertos
+    """
+    try:
+        # Cargar configuración actual
+        with open(config_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Descubrir canales de diferentes fuentes
+        gatotv_channels = discover_gatotv_channels()
+        mitv_channels = discover_mitv_channels()
+        
+        all_discovered = gatotv_channels + mitv_channels
+        
+        if all_discovered:
+            # Combinar con canales existentes (evitar duplicados por ID)
+            existing_ids = {ch.get('id') for ch in config.get('channels', [])}
+            new_channels = [ch for ch in all_discovered if ch['id'] not in existing_ids]
+            
+            if new_channels:
+                config.setdefault('channels', []).extend(new_channels)
+                
+                # Guardar configuración actualizada
+                with open(config_file, 'w', encoding='utf-8') as f:
+                    json.dump(config, f, indent=2, ensure_ascii=False)
+                
+                logging.info(f"Configuración actualizada con {len(new_channels)} canales nuevos")
+                
+                # Mostrar resumen de canales añadidos
+                for ch in new_channels[:5]:  # Mostrar solo los primeros 5
+                    logging.info(f"  + {ch['nombre']} ({ch['scraper']})")
+                if len(new_channels) > 5:
+                    logging.info(f"  ... y {len(new_channels) - 5} canales más")
+                
+                return True
+            else:
+                logging.info("No se encontraron canales nuevos")
+                return False
+        else:
+            logging.warning("No se pudieron descubrir canales")
+            return False
+            
+    except Exception as e:
+        logging.error(f"Error actualizando configuración: {e}")
+        return False
 
+def auto_discover_channels_if_needed(min_channels=3):
+    """
+    Descubre canales automáticamente si la lista está vacía o es muy pequeña
+    """
+    try:
+        with open('config.json', 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        current_channels = len(config.get('channels', []))
+        
+        # Si hay pocos canales, intentar descubrir más
+        if current_channels < min_channels:
+            logging.info(f"Solo {current_channels} canales en config (mínimo: {min_channels}). Iniciando descubrimiento automático...")
+            success = update_config_with_discovered_channels()
+            
+            if success:
+                logging.info("✓ Canales actualizados exitosamente")
+            else:
+                logging.warning("⚠ No se pudieron añadir canales nuevos")
+        else:
+            logging.info(f"Configuración actual: {current_channels} canales (suficientes)")
+        
+    except FileNotFoundError:
+        logging.error("Archivo config.json no encontrado")
+    except json.JSONDecodeError:
+        logging.error("Error leyendo config.json - formato JSON inválido")
+    except Exception as e:
+        logging.error(f"Error en auto-descubrimiento: {e}")
+
+def list_available_channels():
+    """
+    Lista todos los canales disponibles sin modificar la configuración
+    """
+    print("\n" + "="*60)
+    print("CANALES DISPONIBLES PARA SCRAPING")
+    print("="*60)
+    
+    print("\n🇨🇷 CANALES DE COSTA RICA (GatoTV):")
+    gatotv_channels = discover_gatotv_channels()
+    
+    if gatotv_channels:
+        for i, ch in enumerate(gatotv_channels, 1):
+            print(f"  {i:2d}. {ch['nombre']} (ID: {ch['id']})")
+    else:
+        print("  ❌ No se pudieron descubrir canales de GatoTV")
+    
+    print(f"\n🇨🇴 CANALES DE COLOMBIA (Mi.TV):")
+    mitv_channels = discover_mitv_channels()
+    
+    if mitv_channels:
+        for i, ch in enumerate(mitv_channels, 1):
+            print(f"  {i:2d}. {ch['nombre']} (ID: {ch['id']})")
+    else:
+        print("  ❌ No se pudieron descubrir canales de Mi.TV")
+    
+    total = len(gatotv_channels) + len(mitv_channels)
+    print(f"\n📊 TOTAL: {total} canales disponibles")
+    print("="*60)
+    
+    return gatotv_channels + mitv_channels
+
+if __name__ == "__main__":
+    # Para pruebas independientes
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
+    import sys
+    
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "list":
+            list_available_channels()
+        elif sys.argv[1] == "update":
+            update_config_with_discovered_channels()
+        elif sys.argv[1] == "auto":
+            auto_discover_channels_if_needed()
+    else:
+        print("Uso:")
+        print("  python channel_discovery.py list    - Listar canales disponibles")
+        print("  python channel_discovery.py update  - Actualizar config.json")
+        print("  python channel_discovery.py auto    - Auto-descubrir si es necesario")
 
