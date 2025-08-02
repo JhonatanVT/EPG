@@ -2,199 +2,35 @@ name: Generar EPG XMLTV
 
 on:
   schedule:
-    # Se ejecuta todos los días a las 14:05 UTC (8:05 AM en Costa Rica, UTC-6)
-    # para asegurar que la guía de la web ya se haya actualizado.
-    - cron: "5 14 * * *"
-  # Permite la ejecución manual desde la pestaña de Actions en GitHub
+    - cron: '5 14 * * *'
   workflow_dispatch:
-    inputs:
-      force_full_week:
-        description: 'Forzar modo semana completa'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-        - 'true'
-        - 'false'
-      discover_channels:
-        description: 'Auto-descubrir canales nuevos'
-        required: false
-        default: 'true'
-        type: choice
-        options:
-        - 'true'
-        - 'false'
 
 permissions:
-  # Se necesita permiso de escritura para poder hacer 'git push' con los cambios.
   contents: write
 
 jobs:
   build-and-commit-epg:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 1. Clonar el repositorio
+      - name: Clonar el repositorio
         uses: actions/checkout@v4
 
-      - name: 2. Configurar Python
+      - name: Configurar Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"
+          python-version: '3.9'
           cache: 'pip'
 
-      - name: 3. Instalar un navegador (base para Chrome/Brave)
-        uses: browser-actions/setup-chrome@v1
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
 
-      - name: 4. Instalar dependencias de Python
+      - name: Generar EPG
+        run: python main.py
+
+      - name: Subir EPG actualizado
         run: |
-<<<<<<< HEAD
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "github-actions-bot@github.com"
+          git config user.name "GitHub Actions Bot"
+          git config user.email "github-actions-bot@github.com"
           git add -f epgpersonal.xml.gz
-          # Comprueba si hay cambios para commitear. Si no hay, no hace nada.
-          if ! git diff --staged --quiet; then
-            git commit -m "EPG actualizado automáticamente - $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
-            git push
-          else
-            echo "No se encontraron cambios en el EPG. No se necesita commit."
-          fi
-=======
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: 5. Configurar modo de ejecución (si es manual)
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          echo "Ejecución manual detectada"
-          if [ "${{ github.event.inputs.force_full_week }}" = "true" ]; then
-            echo "Activando modo semana completa..."
-            sed -i 's/"force_full_week": false/"force_full_week": true/' config.json
-          fi
-          
-          if [ "${{ github.event.inputs.discover_channels }}" = "true" ]; then
-            echo "Ejecutando auto-descubrimiento de canales..."
-            python channel_discovery.py auto
-          fi
-
-      - name: 6. Ejecutar el motor principal para generar el EPG
-        run: |
-          echo "Iniciando generación de EPG..."
-          python main.py
-          
-          # Verificar que el archivo se generó correctamente
-          if [ -f "epgpersonal.xml.gz" ]; then
-            echo "✓ Archivo EPG generado exitosamente"
-            # Mostrar estadísticas básicas
-            echo "Tamaño del archivo: $(du -h epgpersonal.xml.gz | cut -f1)"
-            echo "Programas encontrados: $(gunzip -c epgpersonal.xml.gz | grep -c '<programme' || echo '0')"
-          else
-            echo "❌ Error: No se generó el archivo EPG"
-            exit 1
-          fi
-
-      - name: 7. Validar estructura del EPG generado
-        run: |
-          echo "Validando estructura XML..."
-          # Verificar que el XML no esté vacío o corrupto
-          if gunzip -t epgpersonal.xml.gz; then
-            echo "✓ Archivo GZIP válido"
-          else
-            echo "❌ Error: Archivo GZIP corrupto"
-            exit 1
-          fi
-          
-          # Verificar estructura XML básica
-          if gunzip -c epgpersonal.xml.gz | head -5 | grep -q '<?xml version="1.0"'; then
-            echo "✓ Estructura XML válida"
-          else
-            echo "❌ Error: Estructura XML inválida"
-            exit 1
-          fi
-
-      - name: 8. Generar reporte de ejecución
-        run: |
-          echo "Generando reporte..."
-          {
-            echo "# 📺 Reporte de Generación EPG"
-            echo "**Fecha:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
-            echo "**Modo:** ${{ github.event_name == 'workflow_dispatch' && 'Manual' || 'Automático' }}"
-            echo ""
-            echo "## 📊 Estadísticas"
-            echo "- **Archivo generado:** epgpersonal.xml.gz"
-            echo "- **Tamaño:** $(du -h epgpersonal.xml.gz | cut -f1)"
-            echo "- **Programas:** $(gunzip -c epgpersonal.xml.gz | grep -c '<programme' || echo '0')"
-            echo "- **Canales:** $(gunzip -c epgpersonal.xml.gz | grep -c '<channel' || echo '0')"
-            echo ""
-            echo "## 🔗 Descarga"
-            echo "```"
-            echo "https://raw.githubusercontent.com/${{ github.repository }}/main/epgpersonal.xml.gz"
-            echo "```"
-          } > reporte_epg.md
-          
-          echo "Reporte generado:"
-          cat reporte_epg.md
-
-      - name: 9. Subir la guía EPG actualizada al repositorio
-        run: |
-          git config --global user.name "EPG Bot"
-          git config --global user.email "epg-bot@github-actions.com"
-          
-          # Añadir archivos principales
-          git add -f epgpersonal.xml.gz
-          git add -f epg_generator.log
-          
-          # Añadir reporte si existe
-          if [ -f "reporte_epg.md" ]; then
-            git add -f reporte_epg.md
-          fi
-          
-          # Añadir config.json si fue modificado por auto-discovery
-          if ! git diff --quiet config.json; then
-            git add config.json
-            echo "config.json actualizado por auto-discovery"
-          fi
-          
-          # Comprueba si hay cambios para commitear
-          if ! git diff --staged --quiet; then
-            TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
-            PROGRAMS=$(gunzip -c epgpersonal.xml.gz | grep -c '<programme' || echo '0')
-            CHANNELS=$(gunzip -c epgpersonal.xml.gz | grep -c '<channel' || echo '0')
-            
-            COMMIT_MSG="🤖 EPG actualizado automáticamente - $TIMESTAMP
-            
-📊 Estadísticas:
-• $PROGRAMS programas procesados
-• $CHANNELS canales actualizados
-• Modo: ${{ github.event_name == 'workflow_dispatch' && 'Manual' || 'Automático' }}"
-            
-            git commit -m "$COMMIT_MSG"
-            git push
-            
-            echo "✅ EPG actualizado y subido al repositorio"
-          else
-            echo "ℹ️ No se encontraron cambios en el EPG. No se necesita commit."
-          fi
-
-      - name: 10. Cleanup y logs finales
-        if: always()
-        run: |
-          echo "=== LOGS DE EJECUCIÓN ==="
-          if [ -f "epg_generator.log" ]; then
-            echo "Mostrando últimas 20 líneas del log:"
-            tail -20 epg_generator.log
-          else
-            echo "No se encontró archivo de log"
-          fi
-          
-          echo ""
-          echo "=== RESUMEN FINAL ==="
-          if [ -f "epgpersonal.xml.gz" ]; then
-            echo "✅ Generación exitosa"
-            echo "📁 Archivo: epgpersonal.xml.gz ($(du -h epgpersonal.xml.gz | cut -f1))"
-            echo "📺 URL: https://raw.githubusercontent.com/${{ github.repository }}/main/epgpersonal.xml.gz"
-          else
-            echo "❌ Generación falló"
-            exit 1
-          fi
->>>>>>> 4579a2458f3963379d3a81912c37959c4e62d611
+          git commit -m "EPG actualizado automáticamente - $(date -u +'%Y-%m-%d %H:%M:%S UTC')" || echo "No hay cambios que commitear"
+          git push || echo "No hay nada que pushear"
