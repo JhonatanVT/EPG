@@ -158,7 +158,7 @@ def main():
         logging.warning(f"⚠ Auto-descubrimiento falló: {e}")
 
     settings = config.get("settings", {})
-    timezone_offset_hours = settings.get("timezone_offset_hours", 5)  # Cambiado a 5 (EST)
+    timezone_offset_hours = settings.get("timezone_offset_hours", 6)  # UTC-6 para Costa Rica
     
     # Mostrar configuración actual
     logging.info(f"Configuración actual:")
