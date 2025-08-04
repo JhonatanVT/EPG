@@ -238,23 +238,23 @@ def list_available_channels():
     print("CANALES DISPONIBLES PARA SCRAPING")
     print("="*60)
     
-    print("\n🇨🇷 CANALES DE COSTA RICA (GatoTV):")
+    print("\nCANALES DE COSTA RICA (GatoTV):")
     gatotv_channels = discover_gatotv_channels()
     
     if gatotv_channels:
         for i, ch in enumerate(gatotv_channels, 1):
             print(f"  {i:2d}. {ch['nombre']} (ID: {ch['id']})")
     else:
-        print("  ❌ No se pudieron descubrir canales de GatoTV")
+        print("  No se pudieron descubrir canales de GatoTV")
     
-    print(f"\n🇨🇴 CANALES DE COLOMBIA (Mi.TV):")
+    print(f"\nCANALES DE COLOMBIA (Mi.TV):")
     mitv_channels = discover_mitv_channels()
     
     if mitv_channels:
         for i, ch in enumerate(mitv_channels, 1):
             print(f"  {i:2d}. {ch['nombre']} (ID: {ch['id']})")
     else:
-        print("  ❌ No se pudieron descubrir canales de Mi.TV")
+        print("  No se pudieron descubrir canales de Mi.TV")
     
     total = len(gatotv_channels) + len(mitv_channels)
     print(f"\n📊 TOTAL: {total} canales disponibles")
