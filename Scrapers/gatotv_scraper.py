@@ -20,9 +20,9 @@ class GatoTVScraper:
             self.days_to_scrape = config.get("days_to_scrape", 1)
             logging.info(f"[GatoTV] Configurado en modo NORMAL - scrapeando {self.days_to_scrape} día(s)")
             
-        # MEJORA: Usar UTC-5 (EST) como en iptv-org para mejor precisión
-        self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours", 5))
-        logging.info(f"[GatoTV] Usando zona horaria UTC-{config.get('timezone_offset_hours', 5)} para compatibilidad")
+        # Usar la zona horaria definida en la configuración principal
+        self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours"))
+        logging.info(f"[GatoTV] Usando zona horaria UTC-{config.get('timezone_offset_hours')} definida en la configuración")
 
     def validate_site_structure(self, soup, url):
         """Valida que la estructura del sitio no haya cambiado"""
@@ -106,7 +106,7 @@ class GatoTVScraper:
         if not datetime_attr:
             # Intentar extraer de texto si no hay atributo datetime
             time_text = time_elem.get_text(strip=True)
-            if re.match(r'^\d{2}:\d{2}$', time_text):
+            if re.match(r'^\d{2}:\d{2}, time_text):
                 datetime_attr = time_text
             else:
                 logging.warning(f"[GatoTV] Formato de tiempo inválido en {column_name}: {time_text}")
