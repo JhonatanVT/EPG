@@ -106,7 +106,7 @@ class GatoTVScraper:
         if not datetime_attr:
             # Intentar extraer de texto si no hay atributo datetime
             time_text = time_elem.get_text(strip=True)
-            if re.match(r'^\d{2}:\d{2}, time_text):
+            if re.match(r'^\d{2}:\d{2}', time_text):
                 datetime_attr = time_text
             else:
                 logging.warning(f"[GatoTV] Formato de tiempo inválido en {column_name}: {time_text}")
