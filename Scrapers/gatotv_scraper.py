@@ -234,6 +234,24 @@ class GatoTVScraper:
                 # MEJORA: Manejar transiciones de día
                 daily_programs = self.handle_day_transitions(daily_programs)
                 
+                # >>> INICIO DE LA MODIFICACIÓN <<<
+                # Filtrar programas que ya han terminado en el día actual
+                if fecha_local == today_local:
+                    now_local = datetime.utcnow() - self.timezone_offset
+                    
+                    programas_futuros = []
+                    for prog in daily_programs:
+                        # Mantener programas cuya hora de finalización es posterior a la hora actual
+                        if prog['stop_dt'] > now_local:
+                            programas_futuros.append(prog)
+                    
+                    programas_filtrados = len(daily_programs) - len(programas_futuros)
+                    if programas_filtrados > 0:
+                        logging.info(f"[GatoTV] Filtrando {programas_filtrados} programas pasados.")
+                    
+                    daily_programs = programas_futuros
+                # >>> FIN DE LA MODIFICACIÓN <<<
+
                 # Convertir a formato final con UTC
                 for prog in daily_programs:
                     start_utc = prog['start_dt'] + self.timezone_offset
