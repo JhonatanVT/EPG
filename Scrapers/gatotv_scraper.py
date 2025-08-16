@@ -128,12 +128,6 @@ class GatoTVScraper:
             start_dt = prog['start_dt']
             stop_dt = prog['stop_dt']
             
-            # Si es el primer programa y empieza después de las 5 AM, probablemente es del día siguiente
-            if i == 0 and start_dt.hour >= 5:
-                start_dt = start_dt + timedelta(days=1)
-                prog['start_dt'] = start_dt
-                logging.debug(f"[GatoTV] Primer programa movido al día siguiente: {start_dt}")
-            
             # Si stop es menor que start, mover stop al día siguiente
             if stop_dt < start_dt:
                 stop_dt = stop_dt + timedelta(days=1)
