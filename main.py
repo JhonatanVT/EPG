@@ -4,6 +4,7 @@ import gzip
 from datetime import datetime, timedelta
 from logging import FileHandler
 from Scrapers.gatotv_scraper import GatoTVScraper
+from Scrapers.ontvtonight_scraper import OnTVTonightScraper
 # from Scrapers.mitv_scraper import MiTVScraper
 from Scrapers.channel_discovery import auto_discover_channels_if_needed
 
@@ -182,6 +183,7 @@ def main():
     # Diccionario de scrapers disponibles. Si creas uno nuevo, lo añades aquí.
     scrapers = {
         "gatotv": GatoTVScraper(weekend_settings),
+        "ontvtonight": OnTVTonightScraper(weekend_settings),
         # "mitv": MiTVScraper(weekend_settings)
     }
 

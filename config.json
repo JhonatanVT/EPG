@@ -39,6 +39,13 @@
       "scraper": "gatotv",
       "url": "https://www.gatotv.com/canal/cartoon_network_costa_rica",
       "site_id": "cartoon_network_costa_rica"
+    },
+    {
+      "id": "Telemundo.us",
+      "nombre": "Telemundo 51",
+      "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Telemundo_51_2018.png/120px-Telemundo_51_2018.png",
+      "scraper": "ontvtonight",
+      "url": "https://www.ontvtonight.com/guide/listings/channel/69025380/wscv-telemundo-51-hdtv.html"
     }
   ]
 }
