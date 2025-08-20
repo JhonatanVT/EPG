@@ -9,6 +9,11 @@ class OnTVTonightScraper:
         self.headers = config.get("headers", {"User-Agent": "Mozilla/5.0"})
         self.days_to_scrape = config.get("days_to_scrape", 1)
         self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours", 5))
+        
+        if self.days_to_scrape > 1:
+            logging.warning("[OnTVTonight] Este scraper solo soporta 1 día de EPG. Se usará solo el día actual.")
+            self.days_to_scrape = 1
+            
         logging.info(f"[OnTVTonight] Configurado en modo NORMAL - scrapeando {self.days_to_scrape} día(s)")
         logging.info(f"[OnTVTonight] Usando zona horaria UTC-{config.get('timezone_offset_hours', 5)}")
 
@@ -17,55 +22,46 @@ class OnTVTonightScraper:
         all_programs = []
         
         today_local = (datetime.utcnow() - self.timezone_offset).date()
+        day_name = today_local.strftime('%A')
+        
+        try:
+            logging.info(f"[OnTVTonight] Scrapeando {day_name} para '{channel_config['nombre']}' desde {url}")
+            res = requests.get(url, headers=self.headers, timeout=15)
+            res.raise_for_status()
+            soup = BeautifulSoup(res.text, "html.parser")
 
-        for i in range(self.days_to_scrape):
-            current_date = today_local + timedelta(days=i)
-            day_name = current_date.strftime('%A')
-            
-            # The URL doesn't seem to have a date parameter, so we scrape the current view
-            # and then select the correct day's table.
-            # For now, we assume the URL is for a single day's listing.
-            
-            try:
-                logging.info(f"[OnTVTonight] Scrapeando {day_name} para '{channel_config['nombre']}' desde {url}")
-                res = requests.get(url, headers=self.headers, timeout=15)
-                res.raise_for_status()
-                soup = BeautifulSoup(res.text, "html.parser")
+            # MEJORA: Selector más específico para la tabla de programación
+            schedule_table = soup.select_one("table.table-striped")
+            if not schedule_table:
+                logging.warning(f"[OnTVTonight] No se encontró la tabla de programación en {url}")
+                return []
 
-                # The listings are in the first table found
-                schedule_table = soup.find("table")
-                if not schedule_table:
-                    logging.warning(f"[OnTVTonight] No se encontró la tabla de programación en {url}")
-                    continue
-
-                programs_for_day = []
-                for row in schedule_table.find_all("tr"):
-                    cells = row.find_all("td")
-                    if len(cells) == 2:
-                        time_str = cells[0].get_text(strip=True)
-                        title = cells[1].get_text(strip=True)
+            programs_for_day = []
+            for row in schedule_table.find_all("tr"):
+                cells = row.find_all("td")
+                if len(cells) == 2:
+                    time_str = cells[0].get_text(strip=True)
+                    title = cells[1].get_text(strip=True)
+                    
+                    try:
+                        parsed_time = datetime.strptime(time_str, "%I:%M %p").time()
+                    except ValueError:
+                        logging.debug(f"[OnTVTonight] No se pudo parsear la hora: {time_str}")
+                        continue
                         
-                        # Parse time like "01:00 am" or "11:30 pm"
-                        try:
-                            parsed_time = datetime.strptime(time_str, "%I:%M %p").time()
-                        except ValueError:
-                            logging.debug(f"[OnTVTonight] No se pudo parsear la hora: {time_str}")
-                            continue
-                            
-                        start_dt = datetime.combine(current_date, parsed_time)
-                        
-                        programs_for_day.append({
-                            "title": title,
-                            "description": "", # No description available
-                            "start_dt": start_dt
-                        })
+                    start_dt = datetime.combine(today_local, parsed_time)
+                    
+                    programs_for_day.append({
+                        "title": title,
+                        "description": "", # No description available
+                        "start_dt": start_dt
+                    })
 
-                if programs_for_day:
-                    all_programs.extend(self.calculate_program_durations(programs_for_day, current_date))
+            if programs_for_day:
+                all_programs.extend(self.calculate_program_durations(programs_for_day, today_local))
 
-            except Exception as e:
-                logging.error(f"[OnTVTonight] Error en '{channel_config['nombre']}' para {day_name}: {e}")
-                continue
+        except Exception as e:
+            logging.error(f"[OnTVTonight] Error en '{channel_config['nombre']}' para {day_name}: {e}")
         
         return all_programs
 
@@ -85,6 +81,7 @@ class OnTVTonightScraper:
             else:
                 # For the last program, assume a 1-hour duration
                 stop_dt_local = start_dt_local + timedelta(hours=1)
+                logging.debug(f"[OnTVTonight] Duración del último programa ('{prog['title']}') asumida en 1 hora.")
 
             start_utc = start_dt_local + self.timezone_offset
             stop_utc = stop_dt_local + self.timezone_offset
