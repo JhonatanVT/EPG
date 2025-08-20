@@ -1,7 +1,7 @@
 {
   "settings": {
     "days_to_scrape": 7,
-    "timezone_offset_hours": 5,
+    "timezone_offset_hours": 6,
     "output_file": "epgpersonal.xml.gz",
     "force_full_week": false,
     "headers": {
