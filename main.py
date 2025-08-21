@@ -227,6 +227,17 @@ def main():
             try:
                 programas_canal = scraper.fetch_programs(channel)
                 
+                # --- INICIO: Guardar datos crudos para depuración ---
+                # Usamos el scraper_key y el channel_id para un nombre de archivo único
+                raw_output_filename = f"d:\\jhonv\\EPG\\{scraper_key}_{channel.get('id', 'unknown')}_raw.json"
+                try:
+                    with open(raw_output_filename, "w", encoding="utf-8") as raw_f:
+                        json.dump(programas_canal, raw_f, indent=4, ensure_ascii=False)
+                    logging.info(f"✓ Datos crudos guardados en {raw_output_filename}")
+                except Exception as e:
+                    logging.error(f"❌ No se pudieron guardar los datos crudos para {channel_name}: {e}")
+                # --- FIN: Guardar datos crudos para depuración ---
+                
                 # Añadir channel_id a cada programa
                 for prog in programas_canal:
                     prog['channel_id'] = channel_id
