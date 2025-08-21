@@ -83,8 +83,8 @@ class OnTVTonightScraper:
                 stop_dt_local = start_dt_local + timedelta(hours=1)
                 logging.debug(f"[OnTVTonight] Duración del último programa ('{prog['title']}') asumida en 1 hora.")
 
-            start_utc = start_dt_local + self.timezone_offset
-            stop_utc = stop_dt_local + self.timezone_offset
+            start_utc = start_dt_local - self.timezone_offset
+            stop_utc = stop_dt_local - self.timezone_offset
 
             program_data = {
                 "title": prog["title"],

@@ -248,8 +248,8 @@ class GatoTVScraper:
 
                 # Convertir a formato final con UTC
                 for prog in daily_programs:
-                    start_utc = prog['start_dt'] + self.timezone_offset
-                    stop_utc = prog['stop_dt'] + self.timezone_offset
+                    start_utc = prog['start_dt'] - self.timezone_offset
+                    stop_utc = prog['stop_dt'] - self.timezone_offset
                     
                     program_data = {
                         "title": prog["title"],
