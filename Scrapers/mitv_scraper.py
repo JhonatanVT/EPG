@@ -1,217 +1,213 @@
+import logging
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
-import logging
+from datetime import datetime, timedelta, timezone
 import re
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+from urllib.parse import urlparse, urljoin
 
 class MiTVScraper:
     def __init__(self, config):
-        self.headers = config.get("headers", {"User-Agent": "Mozilla/5.0"})
+        self.base_url = "https://www.mi.tv"
+        self.headers = config.get("headers", {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "es-CO,es;q=0.8"
+        })
+        self.config = config
+        self.timeout = config.get("timeout", 15)
+        self.cache = {}
         
-        # Si estamos en modo semana completa (para pruebas)
+        # Configuración de días
+        self.days_to_scrape = self._configure_days(config)
+        
+        # Configurar sesión HTTP
+        self.session = self._setup_session()
+        
+    def _configure_days(self, config):
+        """Configura los días a scrapear según el modo"""
         if config.get("is_full_week_mode", False):
-            self.days_to_scrape = 7
-            logging.info("[Mi.TV] 🔧 MODO PRUEBA: Configurado para SEMANA COMPLETA - scrapeando 7 días")
-        # Si estamos en modo fin de semana, usar esa configuración
+            logging.info("[MiTV] Modo semana completa (7 días)")
+            return 7
         elif config.get("is_weekend_mode", False):
-            self.days_to_scrape = config.get("days_to_scrape", 2)
-            logging.info("[Mi.TV] Configurado en modo FIN DE SEMANA - scrapeando sábado y domingo")
+            days = config.get("days_to_scrape", 2)
+            logging.info(f"[MiTV] Modo fin de semana ({days} días)")
+            return days
         else:
-            # MEJORA: Consistencia con GatoTV - usar 1 día por defecto
-            self.days_to_scrape = config.get("days_to_scrape", 1)
-            logging.info(f"[Mi.TV] Configurado en modo NORMAL - scrapeando {self.days_to_scrape} día(s)")
-            
-        # MEJORA: Usar configuración consistente de zona horaria
-        self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours", 5))
-        logging.info(f"[Mi.TV] Usando zona horaria UTC-{config.get('timezone_offset_hours', 5)}")
+            days = config.get("days_to_scrape", 1)
+            logging.info(f"[MiTV] Modo normal ({days} día(s))")
+            return days
 
-    def validate_site_structure(self, soup, url):
-        """Valida que la estructura del sitio no haya cambiado"""
-        expected_elements = [
-            "article.program-item",
-            "time",
-            "h3"
+    def _setup_session(self):
+        """Configura la sesión HTTP con reintentos"""
+        session = requests.Session()
+        retries = Retry(
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=[500, 502, 503, 504],
+            allowed_methods=["GET"]
+        )
+        session.mount('https://', HTTPAdapter(max_retries=retries))
+        return session
+
+    def validate_url(self, url):
+        """Valida formato de URL"""
+        try:
+            result = urlparse(url)
+            return all([result.scheme, result.netloc])
+        except:
+            return False
+
+    def validate_page_structure(self, soup, url):
+        """Valida estructura de la página"""
+        required_elements = [
+            ".schedule-list",
+            ".schedule-item"
         ]
         
-        for element in expected_elements:
-            if not soup.select(element):
-                logging.error(f"[Mi.TV] ESTRUCTURA CAMBIADA: No se encontró '{element}' en {url}")
+        for selector in required_elements:
+            if not soup.select(selector):
+                logging.error(f"[MiTV] Estructura inválida - No se encontró: {selector}")
+                logging.error(f"[MiTV] URL: {url}")
                 return False
         return True
 
-    def parse_program_info(self, prog_elem):
-        """Extrae información del programa con validación mejorada"""
+    def parse_time(self, time_str, fecha_local):
+        """Parsea tiempo con validación mejorada"""
         try:
-            # Extraer hora
-            time_tag = prog_elem.find("time")
-            if not time_tag:
-                logging.debug("[Mi.TV] Programa sin elemento time")
-                return None
-            
-            time_text = time_tag.get_text(strip=True)
-            if not re.match(r'^\d{2}:\d{2}$', time_text):
-                logging.debug(f"[Mi.TV] Formato de hora inválido: {time_text}")
-                return None
-            
-            # Extraer título
-            title_tag = prog_elem.find("h3")
-            if not title_tag:
-                logging.debug("[Mi.TV] Programa sin elemento h3 (título)")
-                return None
-            
-            title = title_tag.get_text(strip=True)
-            if not title:
-                logging.debug("[Mi.TV] Programa con título vacío")
-                return None
-            
-            # Extraer descripción si está disponible
-            description = ""
-            desc_elem = prog_elem.find("p", class_="program-description")
-            if desc_elem:
-                description = desc_elem.get_text(strip=True)
-                # Limpiar espacios extra
-                description = re.sub(r'\s+', ' ', description)
-            
-            # Extraer imagen si está disponible
-            image = ""
-            img_elem = prog_elem.find("img")
-            if img_elem:
-                src = img_elem.get('src')
-                if src and not src.startswith('http'):
-                    # Convertir a URL absoluta
-                    src = f"https://mi.tv{src}"
-                image = src
-            
-            return {
-                "time": time_text,
-                "title": title,
-                "description": description,
-                "image": image
-            }
-            
-        except Exception as e:
-            logging.debug(f"[Mi.TV] Error parseando programa: {e}")
-            return None
+            # Formato esperado: "20:30" o "20:30:00"
+            time_parts = time_str.strip().split(":")
+            if len(time_parts) >= 2:
+                hours = int(time_parts[0])
+                minutes = int(time_parts[1])
+                time_obj = datetime.strptime(f"{hours:02d}:{minutes:02d}", "%H:%M")
+                return datetime.combine(fecha_local, time_obj.time())
+        except ValueError as e:
+            logging.error(f"[MiTV] Error parseando tiempo '{time_str}': {e}")
+        return None
 
-    def calculate_program_durations(self, programs_temp):
-        """Calcula la duración de cada programa basándose en el siguiente"""
-        if not programs_temp:
-            return []
+    def parse_program_details(self, item):
+        """Extrae detalles del programa con validación"""
+        title_elem = item.select_one(".program-title")
+        desc_elem = item.select_one(".program-description")
+        img_elem = item.select_one(".program-image img")
         
-        programas_finales = []
+        details = {
+            'title': "Sin título",
+            'description': "",
+            'image': ""
+        }
         
-        for i, prog in enumerate(programs_temp):
-            start_utc = prog['start_dt'] + self.timezone_offset
-            
-            # Calcular hora de fin
-            if i + 1 < len(programs_temp):
-                # Usar inicio del siguiente programa como fin
-                stop_utc = programs_temp[i + 1]['start_dt'] + self.timezone_offset
-            else:
-                # Para el último programa, asumir 1 hora de duración
-                stop_utc = start_utc + timedelta(hours=1)
-            
-            # Validar que stop sea después de start
-            if stop_utc <= start_utc:
-                stop_utc = start_utc + timedelta(hours=1)
-                logging.debug(f"[Mi.TV] Ajustada duración para '{prog['title']}' - stop ajustado a +1 hora")
-            
-            program_data = {
-                "title": prog["title"],
-                "start": start_utc.strftime("%Y%m%d%H%M%S +0000"),
-                "stop": stop_utc.strftime("%Y%m%d%H%M%S +0000")
-            }
-            
-            # Añadir descripción e imagen si están disponibles
-            if prog.get("description"):
-                program_data["description"] = prog["description"]
-            if prog.get("image"):
-                program_data["image"] = prog["image"]
-            
-            programas_finales.append(program_data)
+        if title_elem:
+            details['title'] = title_elem.get_text(strip=True)
         
-        return programas_finales
+        if desc_elem:
+            details['description'] = desc_elem.get_text(strip=True)
+            
+        if img_elem and img_elem.get('src'):
+            details['image'] = urljoin(self.base_url, img_elem['src'])
+            
+        return details
+
+    def handle_day_transition(self, programs):
+        """Maneja transiciones entre días"""
+        if not programs:
+            return programs
+            
+        for i in range(len(programs)-1):
+            current = programs[i]
+            next_prog = programs[i+1]
+            
+            if next_prog['start_dt'] < current['stop_dt']:
+                next_prog['start_dt'] += timedelta(days=1)
+                next_prog['stop_dt'] += timedelta(days=1)
+                next_prog['start'] = next_prog['start_dt'].strftime("%Y%m%d%H%M%S")
+                next_prog['stop'] = next_prog['stop_dt'].strftime("%Y%m%d%H%M%S")
+        
+        return programs
 
     def fetch_programs(self, channel_config):
-        """
-        Obtiene la programación de un canal específico desde mi.tv con mejoras.
-        """
-        site_id = channel_config["site_id"]
-        url_base = f"https://mi.tv/co/canales/{site_id}"
-        programas_temp = []
-        
-        # Obtener la fecha local actual
-        today_local = (datetime.utcnow() - self.timezone_offset).date()
-        current_weekday = today_local.weekday()
-        
-        # Si estamos en modo semana completa, empezar desde el lunes de esta semana
-        if hasattr(self, 'days_to_scrape') and self.days_to_scrape == 7:
-            monday_this_week = today_local - timedelta(days=current_weekday)
-            start_date = monday_this_week
-            logging.info(f"[Mi.TV] Modo semana completa: iniciando desde lunes {start_date.strftime('%Y-%m-%d')}")
-        else:
-            start_date = today_local
+        """Obtiene la programación de un canal"""
+        url_base = channel_config.get("url")
+        if not self.validate_url(url_base):
+            logging.error(f"[MiTV] URL inválida: {url_base}")
+            return []
 
-        for i in range(self.days_to_scrape):
-            fecha_local = start_date + timedelta(days=i)
-            url = f"{url_base}?fecha={fecha_local.strftime('%Y-%m-%d')}"
+        all_programs = []
+        
+        # Configuración de zona horaria
+        tz_override = channel_config.get("timezone_override")
+        offset_hours = tz_override if tz_override is not None else self.config.get("timezone_offset_hours", 6)
+        timezone_offset = timedelta(hours=offset_hours)
+        
+        today_local = (datetime.now(timezone.utc) - timezone_offset).date()
+        
+        for day_offset in range(self.days_to_scrape):
+            fecha_local = today_local + timedelta(days=day_offset)
+            url = f"{url_base}/{fecha_local.strftime('%Y-%m-%d')}"
             
-            day_name = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"][fecha_local.weekday()]
+            # Verificar caché
+            cache_key = f"{url}_{fecha_local.isoformat()}"
+            if cache_key in self.cache:
+                logging.info(f"[MiTV] Usando caché para {url}")
+                all_programs.extend(self.cache[cache_key])
+                continue
             
             try:
-                logging.info(f"[Mi.TV] Scrapeando {day_name} {fecha_local.strftime('%Y-%m-%d')} para '{channel_config['nombre']}'")
+                response = self.session.get(url, headers=self.headers, timeout=self.timeout)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # MEJORA: Usar headers completos
-                res = requests.get(url, headers=self.headers, timeout=15)
-                res.raise_for_status()
-                res.encoding = 'utf-8'
-                soup = BeautifulSoup(res.text, "html.parser")
-                
-                # MEJORA: Validar estructura antes de procesar
-                if not self.validate_site_structure(soup, url):
-                    logging.error(f"[Mi.TV] Saltando {day_name} por cambio en estructura del sitio")
+                if not self.validate_page_structure(soup, url):
                     continue
                 
-                programs_found = 0
                 daily_programs = []
+                schedule_items = soup.select(".schedule-item")
                 
-                for prog in soup.select("article.program-item"):
-                    program_info = self.parse_program_info(prog)
-                    if not program_info:
+                for item in schedule_items:
+                    time_elem = item.select_one(".schedule-time")
+                    duration_elem = item.select_one(".duration")
+                    
+                    if not time_elem:
+                        continue
+                        
+                    start_time = self.parse_time(time_elem.get_text(), fecha_local)
+                    if not start_time:
                         continue
                     
-                    try:
-                        start_local = datetime.strptime(program_info["time"], "%H:%M")
-                        start_dt = datetime.combine(fecha_local, start_local.time())
-                        
-                        daily_programs.append({
-                            "title": program_info["title"],
-                            "description": program_info["description"],
-                            "image": program_info["image"],
-                            "start_dt": start_dt,
-                            "day": day_name
-                        })
-                        programs_found += 1
-                        
-                    except ValueError as e:
-                        logging.warning(f"[Mi.TV] Error parseando hora '{program_info['time']}': {e}")
-                        continue
+                    # Calcular duración
+                    duration = 30  # duración por defecto
+                    if duration_elem:
+                        duration_match = re.search(r'(\d+)\s*min', duration_elem.get_text())
+                        if duration_match:
+                            duration = int(duration_match.group(1))
+                    
+                    stop_time = start_time + timedelta(minutes=duration)
+                    
+                    program_details = self.parse_program_details(item)
+                    program = {
+                        'start_dt': start_time,
+                        'stop_dt': stop_time,
+                        'start': start_time.strftime("%Y%m%d%H%M%S"),
+                        'stop': stop_time.strftime("%Y%m%d%H%M%S"),
+                        **program_details
+                    }
+                    
+                    daily_programs.append(program)
                 
-                # Añadir programas del día a la lista temporal
-                programas_temp.extend(daily_programs)
+                # Manejar transiciones de día
+                daily_programs = self.handle_day_transition(daily_programs)
                 
-                logging.info(f"[Mi.TV] ✓ {programs_found} programas encontrados para {day_name}")
+                # Guardar en caché
+                self.cache[cache_key] = daily_programs
+                
+                all_programs.extend(daily_programs)
+                logging.info(f"[MiTV] Procesados {len(daily_programs)} programas para {fecha_local}")
                 
             except requests.RequestException as e:
-                logging.error(f"[Mi.TV] Error de conexión en '{channel_config['nombre']}' para {day_name}: {e}")
-                continue
+                logging.error(f"[MiTV] Error de red en {url}: {e}")
             except Exception as e:
-                logging.error(f"[Mi.TV] Error en '{channel_config['nombre']}' para {day_name} ({url}): {e}")
-                continue
+                logging.error(f"[MiTV] Error procesando {url}: {e}")
         
-        # MEJORA: Calcular duraciones de programas
-        programas_finales = self.calculate_program_durations(programas_temp)
-        
-        logging.info(f"[Mi.TV] Total de programas procesados para '{channel_config['nombre']}': {len(programas_finales)}")
-        
-        return programas_finales
+        return all_programs

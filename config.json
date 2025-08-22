@@ -1,9 +1,18 @@
 {
   "settings": {
-    "days_to_scrape": 7,
     "timezone_offset_hours": 6,
     "output_file": "epgpersonal.xml.gz",
+    "days_to_scrape": 7,
     "force_full_week": false,
+    "cache_duration_hours": 12,
+    "retry_attempts": 3,
+    "timeout": 15,
+    "logging": {
+      "level": "INFO",
+      "file": "epg_generator.log",
+      "max_size_mb": 5,
+      "backup_count": 3
+    },
     "headers": {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -22,7 +31,8 @@
       "logo": "https://upload.wikimedia.org/wikipedia/commons/5/5c/Canal6CR.png",
       "scraper": "gatotv",
       "url": "https://www.gatotv.com/canal/6_de_costa_rica",
-      "site_id": "6_de_costa_rica"
+      "site_id": "6_de_costa_rica",
+      "timezone_override": 5
     },
     {
       "id": "HBO2.lat",
@@ -30,7 +40,8 @@
       "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/HBO2_logo.svg/149px-HBO2_logo.svg.png",
       "scraper": "gatotv",
       "url": "https://www.gatotv.com/canal/hbo_2_latinoamerica",
-      "site_id": "hbo_2_latinoamerica"
+      "site_id": "hbo_2_latinoamerica",
+      "timezone_override": 5
     },
     {
       "id": "CartoonNetwork.cr",
@@ -38,7 +49,8 @@
       "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Cartoon_Network_logo.svg/1200px-Cartoon_Network_logo.svg.png",
       "scraper": "gatotv",
       "url": "https://www.gatotv.com/canal/cartoon_network_costa_rica",
-      "site_id": "cartoon_network_costa_rica"
+      "site_id": "cartoon_network_costa_rica",
+      "timezone_override": 5
     },
     {
       "id": "Telemundo.us",
@@ -47,6 +59,15 @@
       "scraper": "ontvtonight",
       "url": "https://www.ontvtonight.com/guide/listings/channel/69025380/wscv-telemundo-51-hdtv.html"
     }
-  ]
+  ],
+  "scraper_settings": {
+    "gatotv": {
+      "base_url": "https://www.gatotv.com",
+      "default_timezone": -6
+    },
+    "ontvtonight": {
+      "base_url": "https://www.ontvtonight.com",
+      "default_timezone": -5
+    }
+  }
 }
-  

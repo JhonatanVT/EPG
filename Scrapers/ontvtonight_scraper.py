@@ -1,97 +1,185 @@
+import logging
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta, time
-import logging
+from datetime import datetime, timedelta, timezone
 import re
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+from urllib.parse import urlparse, urljoin
 
 class OnTVTonightScraper:
     def __init__(self, config):
-        self.headers = config.get("headers", {"User-Agent": "Mozilla/5.0"})
-        self.days_to_scrape = config.get("days_to_scrape", 1)
-        self.timezone_offset = timedelta(hours=config.get("timezone_offset_hours", 5))
+        self.base_url = "https://www.ontvtonight.com"
+        self.headers = config.get("headers", {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+        })
+        self.config = config
+        self.timeout = config.get("timeout", 15)
         
-        if self.days_to_scrape > 1:
-            logging.warning("[OnTVTonight] Este scraper solo soporta 1 día de EPG. Se usará solo el día actual.")
-            self.days_to_scrape = 1
+        # Configuración de días
+        self.days_to_scrape = self._get_days_to_scrape(config)
+        
+        # Configurar sesión HTTP con reintentos
+        self.session = self._setup_session()
+
+    def _get_days_to_scrape(self, config):
+        """Determina los días a scrapear basado en la configuración"""
+        if config.get("is_full_week_mode", False):
+            logging.info("[OnTVTonight] Modo semana completa (7 días)")
+            return 7
+        elif config.get("is_weekend_mode", False):
+            days = config.get("days_to_scrape", 2)
+            logging.info(f"[OnTVTonight] Modo fin de semana ({days} días)")
+            return days
+        else:
+            days = config.get("days_to_scrape", 1)
+            logging.info(f"[OnTVTonight] Modo normal ({days} día(s))")
+            return days
+
+    def _setup_session(self):
+        """Configura la sesión HTTP con reintentos"""
+        session = requests.Session()
+        retries = Retry(
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=[500, 502, 503, 504],
+            allowed_methods=["GET"]
+        )
+        session.mount('https://', HTTPAdapter(max_retries=retries))
+        return session
+
+    def validate_url(self, url):
+        """Valida que una URL sea válida"""
+        try:
+            result = urlparse(url)
+            return all([result.scheme, result.netloc])
+        except:
+            return False
+
+    def validate_page_structure(self, soup, url):
+        """Valida que la estructura de la página sea correcta"""
+        required_elements = [
+            ".schedule-grid",
+            ".schedule-entry"
+        ]
+        
+        for selector in required_elements:
+            if not soup.select(selector):
+                logging.error(f"[OnTVTonight] Estructura inválida - No se encontró: {selector}")
+                logging.error(f"[OnTVTonight] URL: {url}")
+                return False
+        return True
+
+    def parse_time(self, time_str, fecha_local):
+        """Parsea tiempo con manejo de errores mejorado"""
+        try:
+            # Formato esperado: "8:00 PM" o "11:30 AM"
+            time_obj = datetime.strptime(time_str.strip(), "%I:%M %p")
+            return datetime.combine(fecha_local, time_obj.time())
+        except ValueError as e:
+            logging.error(f"[OnTVTonight] Error parseando tiempo '{time_str}': {e}")
+            return None
+
+    def parse_program_details(self, entry):
+        """Extrae detalles del programa con validación mejorada"""
+        title = entry.select_one(".show-title")
+        desc = entry.select_one(".show-description")
+        img = entry.select_one("img")
+        
+        return {
+            'title': title.get_text(strip=True) if title else "Sin título",
+            'description': desc.get_text(strip=True) if desc else "",
+            'image': urljoin(self.base_url, img['src']) if img and img.get('src') else ""
+        }
+
+    def handle_day_transition(self, programs):
+        """Maneja transiciones entre días"""
+        if not programs:
+            return programs
             
-        logging.info(f"[OnTVTonight] Configurado en modo NORMAL - scrapeando {self.days_to_scrape} día(s)")
-        logging.info(f"[OnTVTonight] Usando zona horaria UTC-{config.get('timezone_offset_hours', 5)}")
+        for i in range(len(programs)-1):
+            current = programs[i]
+            next_prog = programs[i+1]
+            
+            if next_prog['start_dt'] < current['stop_dt']:
+                next_prog['start_dt'] += timedelta(days=1)
+                next_prog['stop_dt'] += timedelta(days=1)
+                next_prog['start'] = next_prog['start_dt'].strftime("%Y%m%d%H%M%S")
+                next_prog['stop'] = next_prog['stop_dt'].strftime("%Y%m%d%H%M%S")
+        
+        return programs
 
     def fetch_programs(self, channel_config):
-        url = channel_config["url"]
+        """Obtiene la programación de un canal específico"""
+        url_base = channel_config.get("url")
+        if not self.validate_url(url_base):
+            logging.error(f"[OnTVTonight] URL inválida: {url_base}")
+            return []
+
         all_programs = []
         
-        today_local = (datetime.utcnow() - self.timezone_offset).date()
-        day_name = today_local.strftime('%A')
+        # Configuración de zona horaria
+        tz_override = channel_config.get("timezone_override")
+        offset_hours = tz_override if tz_override is not None else self.config.get("timezone_offset_hours", 6)
+        timezone_offset = timedelta(hours=offset_hours)
         
-        try:
-            logging.info(f"[OnTVTonight] Scrapeando {day_name} para '{channel_config['nombre']}' desde {url}")
-            res = requests.get(url, headers=self.headers, timeout=15)
-            res.raise_for_status()
-            soup = BeautifulSoup(res.text, "html.parser")
-
-            # MEJORA: Selector más específico para la tabla de programación
-            schedule_table = soup.select_one("table.table-striped")
-            if not schedule_table:
-                logging.warning(f"[OnTVTonight] No se encontró la tabla de programación en {url}")
-                return []
-
-            programs_for_day = []
-            for row in schedule_table.find_all("tr"):
-                cells = row.find_all("td")
-                if len(cells) == 2:
-                    time_str = cells[0].get_text(strip=True)
-                    title = cells[1].get_text(strip=True)
+        today_local = (datetime.now(timezone.utc) - timezone_offset).date()
+        
+        for day_offset in range(self.days_to_scrape):
+            fecha_local = today_local + timedelta(days=day_offset)
+            url = f"{url_base}/{fecha_local.strftime('%Y-%m-%d')}"
+            
+            try:
+                response = self.session.get(url, headers=self.headers, timeout=self.timeout)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                if not self.validate_page_structure(soup, url):
+                    continue
+                
+                daily_programs = []
+                entries = soup.select(".schedule-entry")
+                
+                for entry in entries:
+                    time_elem = entry.select_one(".schedule-time")
+                    duration_elem = entry.select_one(".duration")
                     
-                    try:
-                        parsed_time = datetime.strptime(time_str, "%I:%M %p").time()
-                    except ValueError:
-                        logging.debug(f"[OnTVTonight] No se pudo parsear la hora: {time_str}")
+                    if not time_elem or not duration_elem:
                         continue
                         
-                    start_dt = datetime.combine(today_local, parsed_time)
+                    start_time = self.parse_time(time_elem.get_text(), fecha_local)
+                    if not start_time:
+                        continue
                     
-                    programs_for_day.append({
-                        "title": title,
-                        "description": "", # No description available
-                        "start_dt": start_dt
-                    })
-
-            if programs_for_day:
-                all_programs.extend(self.calculate_program_durations(programs_for_day, today_local))
-
-        except Exception as e:
-            logging.error(f"[OnTVTonight] Error en '{channel_config['nombre']}' para {day_name}: {e}")
+                    # Extraer duración en minutos
+                    duration_match = re.search(r'(\d+)\s*min', duration_elem.get_text())
+                    if not duration_match:
+                        continue
+                    
+                    duration = int(duration_match.group(1))
+                    stop_time = start_time + timedelta(minutes=duration)
+                    
+                    program_details = self.parse_program_details(entry)
+                    program = {
+                        'start_dt': start_time,
+                        'stop_dt': stop_time,
+                        'start': start_time.strftime("%Y%m%d%H%M%S"),
+                        'stop': stop_time.strftime("%Y%m%d%H%M%S"),
+                        **program_details
+                    }
+                    
+                    daily_programs.append(program)
+                
+                # Manejar transiciones de día
+                daily_programs = self.handle_day_transition(daily_programs)
+                all_programs.extend(daily_programs)
+                
+                logging.info(f"[OnTVTonight] Procesados {len(daily_programs)} programas para {fecha_local}")
+                
+            except requests.RequestException as e:
+                logging.error(f"[OnTVTonight] Error de red en {url}: {e}")
+            except Exception as e:
+                logging.error(f"[OnTVTonight] Error procesando {url}: {e}")
         
         return all_programs
-
-    def calculate_program_durations(self, daily_programs, current_date):
-        processed_programs = []
-        
-        # Handle day transitions for start times
-        for i in range(len(daily_programs) - 1):
-            if daily_programs[i+1]['start_dt'] < daily_programs[i]['start_dt']:
-                daily_programs[i+1]['start_dt'] += timedelta(days=1)
-
-        for i, prog in enumerate(daily_programs):
-            start_dt_local = prog['start_dt']
-            
-            if i + 1 < len(daily_programs):
-                stop_dt_local = daily_programs[i+1]['start_dt']
-            else:
-                # For the last program, assume a 1-hour duration
-                stop_dt_local = start_dt_local + timedelta(hours=1)
-                logging.debug(f"[OnTVTonight] Duración del último programa ('{prog['title']}') asumida en 1 hora.")
-
-            start_utc = start_dt_local - self.timezone_offset
-            stop_utc = stop_dt_local - self.timezone_offset
-
-            program_data = {
-                "title": prog["title"],
-                "description": prog["description"],
-                "start": start_utc.strftime("%Y%m%d%H%M%S +0000"),
-                "stop": stop_utc.strftime("%Y%m%d%H%M%S +0000")
-            }
-            processed_programs.append(program_data)
-            
-        return processed_programs
