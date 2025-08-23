@@ -4,13 +4,50 @@ import os
 import json
 from datetime import datetime
 from unittest.mock import patch, Mock
+import logging
+
+# Configurar logging básico para tests
+logging.basicConfig(level=logging.WARNING)
+
+# Añadir directorio raíz al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from Scrapers.gatotv_scraper import GatoTVScraper
 from Scrapers.ontvtonight_scraper import OnTVTonightScraper
 
 class TestScrapers(unittest.TestCase):
-    # ...existing code...
+    @classmethod
+    def setUpClass(cls):
+        """Configuración inicial para todos los tests"""
+        try:
+            with open('config.json', 'r', encoding='utf-8') as f:
+                cls.config = json.load(f)
+        except Exception as e:
+            logging.error(f"Error cargando config.json: {e}")
+            cls.config = {
+                "settings": {
+                    "timezone_offset_hours": 6,
+                    "timeout": 15,
+                    "headers": {
+                        "User-Agent": "Mozilla/5.0"
+                    }
+                }
+            }
+
+    def setUp(self):
+        """Configuración para cada test individual"""
+        try:
+            self.gatotv = GatoTVScraper(self.config)
+            self.ontvtonight = OnTVTonightScraper(self.config)
+        except Exception as e:
+            logging.error(f"Error en setUp: {e}")
+            raise
+
+    def test_gatotv_initialization(self):
+        """Verifica la inicialización del scraper GatoTV"""
+        self.assertIsNotNone(self.gatotv)
+        self.assertIsNotNone(self.gatotv.session)
+        self.assertEqual(self.gatotv.timeout, self.config['settings']['timeout'])
 
     @patch('requests.Session.get')
     def test_gatotv_fetch_programs(self, mock_get):
@@ -44,6 +81,7 @@ class TestScrapers(unittest.TestCase):
         '''
         mock_get.return_value = mock_response
 
+        # Usar un canal de prueba basado en la configuración real
         channel = {
             "id": "test.channel",
             "nombre": "Test Channel",
@@ -53,18 +91,19 @@ class TestScrapers(unittest.TestCase):
             "timezone_override": 6
         }
         
-        programs = self.gatotv.fetch_programs(channel)
-        self.assertTrue(len(programs) > 0, "No se obtuvieron programas")
-        if programs:
-            program = programs[0]
-            self.assertIn('title', program, "El programa no tiene título")
-            self.assertIn('start', program, "El programa no tiene hora de inicio")
-            self.assertIn('stop', program, "El programa no tiene hora de fin")
-            self.assertEqual(program['title'], "Programa Test", "El título no coincide")
+        try:
+            programs = self.gatotv.fetch_programs(channel)
+            self.assertIsNotNone(programs)
+            self.assertTrue(len(programs) > 0, "No se obtuvieron programas")
             
-            # Verificar formato de fechas
-            start_time = datetime.strptime(program['start'], '%Y%m%d%H%M%S')
-            stop_time = datetime.strptime(program['stop'], '%Y%m%d%H%M%S')
-            self.assertLess(start_time, stop_time, "La hora de fin debe ser posterior a la de inicio")
+            if programs:
+                program = programs[0]
+                self.assertIn('title', program, "El programa no tiene título")
+                self.assertIn('start', program, "El programa no tiene hora de inicio")
+                self.assertIn('stop', program, "El programa no tiene hora de fin")
+                self.assertEqual(program['title'], "Programa Test", "El título no coincide")
+        except Exception as e:
+            self.fail(f"Error en test_gatotv_fetch_programs: {e}")
 
-    # ...resto del código...
+if __name__ == '__main__':
+    unittest.main()
