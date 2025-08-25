@@ -2,35 +2,46 @@ name: Generar EPG XMLTV
 
 on:
   schedule:
-    - cron: '5 14 * * *'
+    - cron: '5 8 * * *'  # 8:05 AM UTC-6
   workflow_dispatch:
-
-permissions:
-  contents: write
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'epgpersonal.xml.gz'
 
 jobs:
-  build-and-commit-epg:
+  build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Clonar el repositorio
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Configurar Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-          cache: 'pip'
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+        cache: 'pip'
 
-      - name: Instalar dependencias
-        run: pip install -r requirements.txt
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
 
-      - name: Generar EPG
-        run: python main.py
+    - name: Run tests
+      run: |
+        python -m unittest discover tests -v
 
-      - name: Subir EPG actualizado
-        run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "github-actions-bot@github.com"
-          git add -f epgpersonal.xml.gz
-          git commit -m "EPG actualizado automáticamente - $(date -u +'%Y-%m-%d %H:%M:%S UTC')" || echo "No hay cambios que commitear"
-          git push || echo "No hay nada que pushear"
+    - name: Generate EPG
+      if: success()
+      run: python main.py
+
+    - name: Commit and push if changed
+      if: success()
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add epgpersonal.xml.gz
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update EPG: $(date +'%Y-%m-%d %H:%M:%S')"
+        git push
