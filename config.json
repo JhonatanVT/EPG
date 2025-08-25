@@ -58,6 +58,15 @@
       "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Telemundo_51_2018.png/120px-Telemundo_51_2018.png",
       "scraper": "ontvtonight",
       "url": "https://www.ontvtonight.com/guide/listings/channel/69025380/wscv-telemundo-51-hdtv.html"
+    },
+    {
+      "id": "Discovery.lat",
+      "nombre": "Discovery Channel",
+      "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/2019_Discovery_logo.svg/800px-2019_Discovery_logo.svg.png",
+      "scraper": "gatotv",
+      "url": "https://www.gatotv.com/canal/discovery_channel_latinoamerica",
+      "site_id": "discovery_channel_latinoamerica",
+      "timezone_override": 5
     }
   ],
   "scraper_settings": {
